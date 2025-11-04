@@ -6,7 +6,7 @@
 - 3× **Buttons** (TOGGLE, NEXT, PREV)
 - 1× **Switch**
 
-## Kết nối chân (TFT ↔ ESP8266)
+##TFT ↔ ESP8266
 | TFT pin | ESP8266 pin |
 |---|---|
 | BLK | 3V |
@@ -18,7 +18,7 @@
 | VCC | 3V |
 | GND | GND |
 
-## Nút bấm – chức năng & cách nối
+## Nút bấm
 | Nút  | Chân ESP8266 | Thao tác | Chức năng |
 |---|---|---|---|
 | TOGGLE | D1 | Nhấn | Vào **Info AP** |
