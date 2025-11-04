@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESP8266 PhotoFrame</title>
+  <style>
+    :root{ --gap:8px; --pad:12px; --radius:10px; --btnpad:8px 12px; }
+    *{box-sizing:border-box}
+    body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:12px;background:#f0f0f0}
+    .box{max-width:860px;margin:auto;background:#fff;padding:var(--pad);border-radius:var(--radius);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    h1{font-size:18px;margin:0 0 10px;color:#333}
+    h2{font-size:16px;margin:10px 0 6px;color:#333}
+    .row{display:flex;gap:var(--gap);flex-wrap:wrap;margin:var(--gap) 0}
+    .col{flex:1;min-width:240px}
+    input[type=file],select,input[type=text]{
+      padding:8px;border:1px solid #ccc;border-radius:6px;width:100%;font-size:14px
+    }
+    .controls{display:flex;flex-wrap:wrap;gap:8px}
+    .controls label{display:flex;align-items:center;gap:6px;font-size:13px;color:#333}
+    button,.btn{
+      padding:var(--btnpad);border:none;border-radius:6px;cursor:pointer;background:#4CAF50;color:#fff;
+      text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:14px
+    }
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .btn.alt{background:#2196F3}
+    .btn:hover:not(:disabled){filter:brightness(0.95)}
+    .small{font-size:12.5px;color:#666;margin:6px 0}
+    .preview{background:#fafafa;border:1px solid #e5e5e5;border-radius:8px;padding:10px}
+    .preview-title{font-weight:600;font-size:13px;margin-bottom:6px;color:#444}
+    canvas, img{max-width:100%;display:block;border:1px solid #ddd;border-radius:6px;background:#000}
+    .status{background:#e9f3ff;padding:10px;border-radius:8px;margin-top:10px;color:#1256a0;font-size:13px}
+    .kv{font-size:13px;color:#333;display:grid;grid-template-columns:auto 1fr;gap:2px 8px}
+    .kv b{color:#555}
+    .hr{height:1px;background:#e5e5e5;margin:12px 0}
+    .inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>HAOTAI PhotoFrame</h1>
+
+    <!-- 1) ẢNH TĨNH: JPG/JPEG/PNG – TỰ NHẬN DIỆN VIETQR -->
+    <h2>Ảnh</h2>
+    <div class="row">
+      <div class="col">
+        <!-- chặn GIF tại input -->
+        <input id="fImg" type="file" accept="image/jpeg,image/jpg,image/png,image/webp">
+        <div class="small">Ảnh/QR: nếu ảnh chứa VietQR sẽ tự nhận dạng và dựng QR 128×128.</div>
+      </div>
+      <div class="col">
+        <div class="controls">
+          <label><input type="radio" name="mode" value="fit" checked> Fit</label>
+          <label><input type="radio" name="mode" value="cover"> Cover</label>
+          <label>Xoay
+            <select id="rot"><option>0</option><option>90</option><option>180</option><option>270</option></select>
+          </label>
+          <label>Chất lượng
+            <select id="jq"><option>0.6</option><option selected>0.8</option><option>0.9</option></select>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="preview">
+          <div class="preview-title">Preview</div>
+          <img id="imgPreview" style="max-height:200px">
+        </div>
+      </div>
+      <div class="col">
+        <div class="preview">
+          <div class="preview-title">128×160</div>
+          <canvas id="cMain" width="128" height="160"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="align-items:center">
+      <div class="col inline">
+        <button id="btnRender" title="Dùng khi ảnh không có QR">Render</button>
+        <button id="btnUpload" class="btn alt" disabled>Upload</button>
+      </div>
+      <div class="col">
+        <div class="preview">
+          <div class="preview-title">Thông tin QR</div>
+          <div id="meta" class="kv">
+            <b>Tên:</b><span id="mName">-</span>
+            <b>STK:</b><span id="mAcc">-</span>
+            <b>Ngân hàng:</b><span id="mBank">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <!-- 2) TỰ TẠO QR -->
+    <h2>Tạo QR</h2>
+    <div class="row">
+      <div class="col">
+        <input id="qText" type="text" placeholder="Nhập nội dung QR (text/URL/...)">
+        <div class="inline">
+          <button id="btnMakeQR">Render QR</button>
+          <button id="btnUploadQR" class="btn alt" disabled>Upload</button>
+        </div>
+        <div class="small">QR được dựng 128×128 (có viền, căn giữa 128×160).</div>
+      </div>
+      <div class="col">
+        <div class="preview">
+          <div class="preview-title">QR 128×128</div>
+          <canvas id="cQR" width="128" height="160"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <!-- Danh sách (nút Xóa tất cả chỉ xuất hiện trong trang /list) -->
+    <div class="row">
+      <a class="btn alt" href="/list">Danh sách</a>
+    </div>
+
+    <div id="st" class="status">Sẵn sàng</div>
+  </div>
+
+  <!-- Thư viện -->
+  <script src="/jsqr.min.js"></script>
+  <script>if(typeof jsQR==='undefined'){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';document.head.appendChild(s);}</script>
+  <script src="/qrcode.min.js"></script>
+  <script>if(typeof qrcode==='undefined'){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';document.head.appendChild(s);}</script>
+
+  <script>
+  (function(){
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const st   = t => $('st').innerHTML = '✅ ' + t;
+    const ster = t => $('st').innerHTML = '❌ ' + t;
+
+    function loadImg(file){
+      return new Promise((ok,err)=>{
+        const r=new FileReader();
+        r.onload=e=>{
+          const im=new Image();
+          im.onload = ()=>ok(im);
+          im.onerror= err;
+          im.src = e.target.result;
+        };
+        r.onerror=err;
+        r.readAsDataURL(file);
+      });
+    }
+    function toBlob(c,q){return new Promise(ok=>c.toBlob(b=>ok(b),'image/jpeg',q));}
+    async function uploadCanvas(canvas, filename='photo.jpg', q=0.9){
+      const blob = await toBlob(canvas,q);
+      if(!blob){ ster('Không tạo được ảnh để upload'); return false; }
+      const fd = new FormData(); fd.append('file', blob, filename);
+      const r = await fetch('/upload',{method:'POST',body:fd});
+      if(!r.ok){ ster('Upload lỗi'); return false; }
+      st('Upload thành công!'); return true;
+    }
+    function formatAcc(num){
+      const s=(num||'').replace(/\s+/g,'');
+      if(/^\d+$/.test(s)) return s.replace(/(\d)(?=(\d{3})+(?!\d))/g,'$1 ');
+      return num||'';
+    }
+    function setMeta({name,acc,bank}){
+      $('mName').textContent = name || '-';
+      $('mAcc').textContent  = acc  || '-';
+      $('mBank').textContent = bank || '-';
+    }
+
+    function waitFor(fnName, timeout=2000){
+      return new Promise((resolve)=>{
+        const t0=Date.now();
+        (function loop(){
+          if (typeof window[fnName] !== 'undefined') return resolve(true);
+          if (Date.now()-t0>timeout) return resolve(false);
+          setTimeout(loop, 50);
+        })();
+      });
+    }
+
+    // TLV helpers
+    function parseTLV(str){
+      const out={}; let i=0;
+      while(i+4<=str.length){
+        const tag=str.substr(i,2); i+=2;
+        const len=parseInt(str.substr(i,2),10); i+=2;
+        if(isNaN(len)||i+len>str.length) break;
+        const val=str.substr(i,len); i+=len;
+        out[tag]={len,value:val};
+      }
+      return out;
+    }
+    function parseVietQRData(raw){
+      const info={accountName:'',accountNumber:'',bank:'',raw:raw||''};
+      if(!raw) return info;
+
+      // URL vietqr.io
+      try{
+        if(/^https?:\/\//i.test(raw)){
+          const u=new URL(raw);
+          if(u.hostname.includes('vietqr')){
+            if(u.pathname.includes('/image/')){
+              const seg=u.pathname.split('/image/')[1]||'';
+              const first=seg.split(/[./]/)[0]||'';
+              const parts=first.split('-');
+              if(parts.length>=2){ info.bank=(parts[0]||'').toUpperCase(); info.accountNumber=parts[1]||''; }
+            }
+            const qs=u.searchParams;
+            if(qs.get('accountName')) info.accountName = decodeURIComponent(qs.get('accountName'));
+            return info;
+          }
+        }
+      }catch(e){}
+
+      // EMV TLV (AID VietQR = A000000727)
+      if(/^000201/.test(raw)){
+        const tlv=parseTLV(raw);
+        if(tlv['59']) info.accountName = tlv['59'].value || '';
+        for(let id=26; id<=51; id++){
+          const key=String(id).padStart(2,'0');
+          if(tlv[key]){
+            const sub=parseTLV(tlv[key].value);
+            if(sub['00'] && /A000000727/i.test(sub['00'].value)){
+              if(sub['01']) info.bank = sub['01'].value || '';
+              if(sub['02']) info.accountNumber = sub['02'].value || '';
+              break;
+            }
+          }
+        }
+      }
+      info.accountName  = (info.accountName||'').trim();
+      info.accountNumber= (info.accountNumber||'').replace(/[^\d]/g,'').trim();
+      info.bank         = (info.bank||'').trim();
+      return info;
+    }
+
+    async function detectQRFromImage(im){
+      const ok = await waitFor('jsQR', 2000);
+      if(!ok){ ster('Thiếu jsQR. Hãy tải /jsqr.min.js lên ESP (LittleFS).'); return null; }
+
+      const tmp=document.createElement('canvas');
+      const tctx=tmp.getContext('2d', {willReadFrequently:true});
+      const scales=[1,0.75,0.5,0.35,0.25];
+
+      for(const s of scales){
+        const w=Math.max(120, Math.floor(im.naturalWidth*s));
+        const h=Math.max(120, Math.floor(im.naturalHeight*s));
+        tmp.width=w; tmp.height=h;
+        tctx.drawImage(im,0,0,w,h);
+
+        let id=tctx.getImageData(0,0,w,h);
+        let res=jsQR(id.data, w, h, { inversionAttempts:'attemptBoth' });
+        if(res && res.data) return res.data;
+
+        const m=Math.min(w,h), sx=Math.floor((w-m)/2), sy=Math.floor((h-m)/2);
+        id=tctx.getImageData(sx,sy,m,m);
+        res=jsQR(id.data, m, m, { inversionAttempts:'attemptBoth' });
+        if(res && res.data) return res.data;
+      }
+      return null;
+    }
+
+    // Canvas chính
+    const cMain=$('cMain'), ctx=cMain.getContext('2d', {willReadFrequently:true});
+
+    function centerText(ctx, text, y, color='#FFF', size=12, weight='bold', maxW=118){
+      let s=size; ctx.textAlign='center'; ctx.textBaseline='middle';
+      do{
+        ctx.font = weight+' '+s+'px Arial';
+        if(ctx.measureText(text).width<=maxW) break;
+        s--;
+      }while(s>=9);
+      ctx.fillStyle=color;
+      ctx.fillText(text, 64, y);
+    }
+
+    function drawCrispQR128To(ctx, rawText, opts){
+      const barTop = (opts&&opts.barTop)|0 || 18;
+      const barBot = (opts&&opts.barBot)|0 || 18;
+      const wb     = (opts&&opts.border)|0 || 4;
+
+      ctx.fillStyle='#000'; ctx.fillRect(0,0,128,160);
+      ctx.fillRect(0,0,128,barTop);
+      ctx.fillRect(0,160-barBot,128,barBot);
+
+      var qr=qrcode(0,'M'); qr.addData(rawText); qr.make();
+      var n=qr.getModuleCount();
+      var cell=Math.floor(128/n); if(cell<1) cell=1;
+      var size=cell*n;
+      var offX=Math.floor((128-size)/2);
+      var offY=barTop + Math.floor((160-barTop-barBot-size)/2);
+
+      ctx.fillStyle='#fff';
+      ctx.fillRect(offX-wb, offY-wb, size+2*wb, size+2*wb);
+
+      ctx.fillStyle='#000';
+      for(var r=0;r<n;r++){
+        for(var c=0;c<n;c++){
+          if(qr.isDark(r,c)) ctx.fillRect(offX+c*cell, offY+r*cell, cell, cell);
+        }
+      }
+      return {barTop,barBot};
+    }
+
+    function drawPhoto(image, mode, rotDeg){
+      ctx.save();
+      ctx.fillStyle='#000'; ctx.fillRect(0,0,128,160);
+      const iw=image.naturalWidth, ih=image.naturalHeight;
+      ctx.translate(64,80);
+      ctx.rotate((rotDeg||0)*Math.PI/180);
+      ctx.translate(-64,-80);
+      if(mode==='cover'){
+        const s=Math.max(128/iw,160/ih), sw=128/s, sh=160/s, sx=(iw-sw)/2, sy=(ih-sh)/2;
+        ctx.drawImage(image, sx,sy,sw,sh, 0,0,128,160);
+      }else{
+        const s=Math.min(128/iw,160/ih), dw=iw*s, dh=ih*s, dx=(128-dw)/2, dy=(160-dh)/2;
+        ctx.drawImage(image, dx,dy,dw,dh);
+      }
+      ctx.restore();
+    }
+
+    // Logic chính
+    const imgPreview=$('imgPreview');
+    const fImg=$('fImg'), btnRender=$('btnRender'), btnUpload=$('btnUpload');
+    const rot=$('rot'), jq=$('jq');
+    let mode='fit'; document.querySelectorAll('input[name=mode]').forEach(r=>r.addEventListener('change',e=>mode=e.target.value));
+    let lastIsVietQR=false, lastFileName='photo.jpg';
+
+    fImg.addEventListener('change', async()=>{
+      btnUpload.disabled=true; setMeta({name:'-',acc:'-',bank:'-'});
+      if(!fImg.files[0]){ imgPreview.src=''; ctx.clearRect(0,0,128,160); return; }
+
+      const file=fImg.files[0];
+      // chặn GIF nếu cố tình chọn
+      if(/\.(gif)$/i.test(file.name)){ ster('Đã tắt chức năng GIF. Chọn JPG/PNG.'); imgPreview.src=''; ctx.clearRect(0,0,128,160); return; }
+
+      try{
+        const im = await loadImg(file);
+        imgPreview.src = im.src;
+
+        const raw = await detectQRFromImage(im);
+
+        if(raw){
+          const meta = parseVietQRData(raw);
+          const bars = drawCrispQR128To(ctx, raw, {barTop:18,barBot:18,border:4});
+          if(meta.accountName){
+            centerText(ctx, meta.accountName, Math.floor(bars.barTop/2), '#FFFFFF', 13, 'bold', 118);
+          }
+          if(meta.accountNumber){
+            centerText(ctx, formatAcc(meta.accountNumber), 160 - Math.floor(bars.barBot/2), '#00FF00', 13, 'bold', 118);
+          }
+          setMeta({name: meta.accountName||'-', acc: meta.accountNumber||'-', bank: meta.bank||'-'});
+          lastIsVietQR=true; lastFileName='vietqr.jpg';
+          btnRender.disabled=true;
+          btnUpload.disabled=false;
+          st('Đã nhận dạng VietQR và dựng 128×160');
+        }else{
+          ctx.clearRect(0,0,128,160);
+          drawPhoto(im, mode, parseInt(rot.value||'0'));
+          lastIsVietQR=false; lastFileName='photo.jpg';
+          btnRender.disabled=false;
+          btnUpload.disabled=false;
+          st('Không có QR – đã render ảnh 128×160');
+        }
+      }catch(e){
+        console.error(e);
+        ster('Lỗi đọc ảnh');
+      }
+    });
+
+    btnRender.addEventListener('click', async()=>{
+      if(!fImg.files[0]) return;
+      if(lastIsVietQR){ st('Ảnh là VietQR – không cần Render'); return; }
+      try{
+        const im = await loadImg(fImg.files[0]);
+        ctx.clearRect(0,0,128,160);
+        drawPhoto(im, mode, parseInt(rot.value||'0'));
+        st('Đã render lại ảnh');
+      }catch(e){ ster('Lỗi render'); }
+    });
+
+    btnUpload.addEventListener('click', async()=>{
+      if(!fImg.files[0]) return;
+      btnUpload.disabled=true;
+      const ok = await uploadCanvas(cMain, lastFileName, parseFloat(jq.value||'0.8'));
+      if(ok) setTimeout(()=>location.href='/',800);
+      else btnUpload.disabled=false;
+    });
+
+    // Tạo QR riêng
+    const cQR=$('cQR'), qctx=cQR.getContext('2d', {willReadFrequently:true});
+    const qText=$('qText'), btnMakeQR=$('btnMakeQR'), btnUploadQR=$('btnUploadQR');
+
+    function drawCrispQR128_Generic(text){
+      qctx.fillStyle='#000'; qctx.fillRect(0,0,128,160);
+      drawCrispQR128To(qctx, text, {barTop:16, barBot:16, border:4});
+    }
+
+    btnMakeQR.addEventListener('click', async ()=>{
+      const ok = await waitFor('qrcode', 2000);
+      if(!ok){ ster('Thiếu qrcode-generator. Hãy tải /qrcode.min.js lên ESP.'); return; }
+      const text = (qText.value||'').trim();
+      if(!text){ ster('Nhập nội dung QR'); return; }
+      drawCrispQR128_Generic(text);
+      btnUploadQR.disabled=false;
+      st('Đã dựng QR 128×160');
+    });
+
+    btnUploadQR.addEventListener('click', async()=>{
+      const ok = await uploadCanvas(cQR, 'qrcode.jpg', 0.9);
+      if(ok) setTimeout(()=>location.href='/',800);
+    });
+
+  })();
+  </script>
+</body>
+</html>
