@@ -1,12 +1,12 @@
 # PhotoFrame
 
-## Danh sách linh kiện
+## List of components
 - 1× **TFT ST7735S**
 - 1× **ESP8266**
 - 3× **Buttons** (TOGGLE, NEXT, PREV)
 - 1× **Switch**
 
-##TFT ↔ ESP8266
+## TFT ↔ ESP8266
 | TFT pin | ESP8266 pin |
 |---|---|
 | BLK | 3V |
@@ -18,11 +18,11 @@
 | VCC | 3V |
 | GND | GND |
 
-## Nút bấm
-| Nút  | Chân ESP8266 | Thao tác | Chức năng |
+## Button
+| Button  | ESP | operation | Function |
 |---|---|---|---|
-| TOGGLE | D1 | Nhấn | Vào **Info AP** |
-| TOGGLE | D1 | Giữ 1s | Vào **Menu** (trong menu hoạt động như **nút chọn**) |
-| NEXT | RX | Nhấn | **Next** |
-| NEXT | RX | Giữ 1s | Hiện **ảnh QR** đã tải lên |
-| PREV | D3 | Nhấn | **Trở lại** |
+| TOGGLE | D1 | Click | Enter **Info AP** |
+| TOGGLE | D1 | Hold 1s | Enter **Menu** |
+| NEXT | RX | Click | **Next** |
+| NEXT | RX | Hold 1s | draw **QR Code** |
+| PREV | D3 | Click | **Back** |
